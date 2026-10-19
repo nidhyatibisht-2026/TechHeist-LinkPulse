@@ -1,4 +1,4 @@
-"""Background worker. Run with:  arq app.worker.WorkerSettings
+"""Background worker. Run with: arq app.worker.WorkerSettings
 
 Jobs:
   process_click       - one per visit, enqueued by the redirect route
@@ -25,8 +25,15 @@ HEALTH_BATCH = 200
 
 
 async def process_click(ctx, event: dict) -> None:
+    """Safely process and commit a single visit click event into PostgreSQL."""
     async with SessionLocal() as session:
-        await clicks.record(session, event)
+        try:
+            await clicks.record(session, event)
+            await session.commit()
+        except Exception as exc:
+            await session.rollback()
+            log.error("Failed to process click event %s: %s", event, exc)
+            raise
 
 
 async def health_check_links(ctx) -> dict:
@@ -53,19 +60,26 @@ async def health_check_links(ctx) -> dict:
             link.health_checked_at = datetime.now(timezone.utc)
             broken += status == "broken"
         await session.commit()
-    log.info("health check: %s links, %s broken", len(links), broken)
+    log.info("Health check completed: checked %s links, found %s broken destinations.", len(links), broken)
     return {"checked": len(links), "broken": broken}
 
 
 async def startup(ctx) -> None:
+    log.info("Background worker starting up...")
     if settings.auto_create_tables:
         await create_tables()
+
+
+async def shutdown(ctx) -> None:
+    log.info("Background worker shutting down gracefully.")
 
 
 class WorkerSettings:
     functions = [process_click]
     cron_jobs = [cron(health_check_links, minute={0, 30}, run_at_startup=True)]
     on_startup = startup
+    on_shutdown = shutdown
     redis_settings = RedisSettings.from_dsn(settings.redis_url or "redis://localhost:6379/0")
     max_jobs = 50
     keep_result = 0  # click jobs don't need stored results
+    job_timeout = 60
