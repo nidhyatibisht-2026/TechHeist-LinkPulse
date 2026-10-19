@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import random
 from datetime import datetime, timedelta, timezone
 
@@ -21,20 +22,30 @@ from app.models import BlockedDomain, Campaign, ClickEvent, Link, Tag, TargetRul
 from app.security import hash_password
 from app.services import cache
 
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger("linkpulse.seed")
+
 RNG = random.Random(42)  # deterministic: same data on every reset
 NOW = datetime.now(timezone.utc)
 
 DEVICES = [("mobile", 62), ("desktop", 30), ("tablet", 8)]
-OS_BY_DEVICE = {"mobile": [("android", 70), ("ios", 30)], "tablet": [("android", 45), ("ios", 55)],
-                "desktop": [("windows", 64), ("macos", 26), ("linux", 10)]}
-BROWSER_BY_OS = {"android": [("Chrome", 80), ("Samsung Internet", 15), ("Firefox", 5)],
-                 "ios": [("Safari", 85), ("Chrome", 15)],
-                 "windows": [("Chrome", 70), ("Edge", 22), ("Firefox", 8)],
-                 "macos": [("Safari", 45), ("Chrome", 50), ("Firefox", 5)],
-                 "linux": [("Chrome", 60), ("Firefox", 40)]}
+OS_BY_DEVICE = {
+    "mobile": [("android", 70), ("ios", 30)],
+    "tablet": [("android", 45), ("ios", 55)],
+    "desktop": [("windows", 64), ("macos", 26), ("linux", 10)],
+}
+BROWSER_BY_OS = {
+    "android": [("Chrome", 80), ("Samsung Internet", 15), ("Firefox", 5)],
+    "ios": [("Safari", 85), ("Chrome", 15)],
+    "windows": [("Chrome", 70), ("Edge", 22), ("Firefox", 8)],
+    "macos": [("Safari", 45), ("Chrome", 50), ("Firefox", 5)],
+    "linux": [("Chrome", 60), ("Firefox", 40)],
+}
 COUNTRIES = [("IN", 55), ("US", 14), ("GB", 6), ("AE", 6), ("SG", 4), ("DE", 3), ("CA", 3), ("Unknown", 9)]
-REFERRERS = [("Direct", 34), ("instagram.com", 22), ("linkedin.com", 12), ("x.com", 9), ("google.com", 8),
-             ("youtube.com", 7), ("facebook.com", 5), ("reddit.com", 3)]
+REFERRERS = [
+    ("Direct", 34), ("instagram.com", 22), ("linkedin.com", 12), ("x.com", 9),
+    ("google.com", 8), ("youtube.com", 7), ("facebook.com", 5), ("reddit.com", 3)
+]
 BOTS = [("link preview fetcher", 60), ("search or AI crawler", 20), ("scripted client", 12), ("click burst", 8)]
 
 
@@ -43,8 +54,11 @@ def pick(options):
     return RNG.choices(values, weights=weights)[0]
 
 
-def make_events(link_id: int, start: datetime, end: datetime, per_day: float, *, qr_share: float = 0.1,
-                outcome: str = "redirect", bot_share: float = 0.08, spike_last_day: int = 0) -> list[dict]:
+def make_events(
+    link_id: int, start: datetime, end: datetime, per_day: float, *,
+    qr_share: float = 0.1, outcome: str = "redirect", bot_share: float = 0.08,
+    spike_last_day: int = 0
+) -> list[dict]:
     events = []
     visitors = [f"seed-{link_id}-{i}" for i in range(max(10, int(per_day * 6)))]
 
@@ -53,12 +67,20 @@ def make_events(link_id: int, start: datetime, end: datetime, per_day: float, *,
         os_name = pick(OS_BY_DEVICE[device])
         is_bot = RNG.random() < bot_share
         events.append({
-            "link_id": link_id, "ts": ts, "outcome": outcome,
+            "link_id": link_id,
+            "ts": ts,
+            "outcome": outcome,
             "source": "qr" if RNG.random() < qr_share else "link",
-            "referrer": None, "referrer_domain": pick(REFERRERS), "device": device, "os": os_name,
-            "browser": pick(BROWSER_BY_OS[os_name]), "country": pick(COUNTRIES),
+            "referrer": None,
+            "referrer_domain": pick(REFERRERS),
+            "device": device,
+            "os": os_name,
+            "browser": pick(BROWSER_BY_OS[os_name]),
+            "country": pick(COUNTRIES),
             "visitor_hash": visitor_hash("seed", RNG.choice(visitors), "ua", ts.date()),
-            "is_bot": is_bot, "bot_reason": pick(BOTS) if is_bot else None, "destination": None,
+            "is_bot": is_bot,
+            "bot_reason": pick(BOTS) if is_bot else None,
+            "destination": None,
         })
 
     day = start.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -69,7 +91,7 @@ def make_events(link_id: int, start: datetime, end: datetime, per_day: float, *,
             if start <= ts <= end:
                 add(ts)
         day += timedelta(days=1)
-    # The spike lands in the 24 hours before `end`, whatever time of day the seed runs.
+    
     for _ in range(spike_last_day):
         add(end - timedelta(seconds=RNG.randint(0, 86000)))
     return events
@@ -78,10 +100,13 @@ def make_events(link_id: int, start: datetime, end: datetime, per_day: float, *,
 async def main(reset: bool) -> None:
     async with engine.begin() as conn:
         if reset:
+            log.info("Resetting database: dropping all existing tables...")
             await conn.run_sync(Base.metadata.drop_all)
+        log.info("Creating database tables and indexes...")
         await conn.run_sync(Base.metadata.create_all)
 
     async with SessionLocal() as s:
+        log.info("Seeding users, campaigns, tags, and blocklists...")
         admin = User(email="admin@linkpulse.dev", name="Asha (Admin)", role="admin", password_hash=hash_password("Admin@12345"))
         demo = User(email="demo@linkpulse.dev", name="Rohan (Marketing)", password_hash=hash_password("Demo@12345"))
         other = User(email="priya@linkpulse.dev", name="Priya (Ops)", password_hash=hash_password("Priya@12345"))
@@ -95,11 +120,15 @@ async def main(reset: bool) -> None:
         monsoon = Campaign(owner_id=demo.id, name="Monsoon Clearance", description="Ended campaign kept for reporting")
         hiring = Campaign(owner_id=other.id, name="Campus Hiring", description="Placement drive links")
         s.add_all([diwali, launch, monsoon, hiring])
+
         tags = {n: Tag(owner_id=demo.id, name=n, color=c) for n, c in
                 [("instagram", "#C13584"), ("email", "#0B7FB5"), ("print", "#6B4E16"), ("partner", "#1F8A5B")]}
         s.add_all(tags.values())
-        s.add_all([BlockedDomain(domain="free-giftcards.win", reason="Reported phishing kit", created_by=admin.id),
-                   BlockedDomain(domain="login-verify-account.com", reason="Credential harvesting", created_by=admin.id)])
+
+        s.add_all([
+            BlockedDomain(domain="free-giftcards.win", reason="Reported phishing kit", created_by=admin.id),
+            BlockedDomain(domain="login-verify-account.com", reason="Credential harvesting", created_by=admin.id)
+        ])
         await s.flush()
 
         def L(code, dest, title, owner=demo, campaign=None, tag_names=(), **kw):
@@ -134,12 +163,13 @@ async def main(reset: bool) -> None:
                               owner=other, status="disabled", disabled_reason="Phishing report from 3 users",
                               created_at=d(4)),
             "placements": L("placements", "https://careers.example.com/campus-2026", "Campus placements",
-                            owner=other, campaign=hiring, created_at=d(18)),
+                             owner=other, campaign=hiring, created_at=d(18)),
             "broken-promo": L("broken-promo", "https://shop.example.com/removed-page", "Promo with a dead page",
                               campaign=diwali, health_status="broken", health_detail="Destination returned HTTP 404",
                               health_checked_at=d(0), created_at=d(15)),
         }
         await s.flush()
+
         s.add_all([
             TargetRule(link_id=links["get-app"].id, kind="os", value="ios", priority=0,
                        destination="https://apps.apple.com/app/id000000000"),
@@ -147,6 +177,7 @@ async def main(reset: bool) -> None:
                        destination="https://play.google.com/store/apps/details?id=dev.linkpulse.demo"),
         ])
 
+        log.info("Generating synthetic click event streams...")
         events: list[dict] = []
         events += make_events(links["diwali"].id, d(29), NOW, 38, qr_share=0.05)
         events += make_events(links["festive-drop"].id, d(12), NOW, 9, spike_last_day=140)
@@ -169,6 +200,7 @@ async def main(reset: bool) -> None:
                 human[e["link_id"]] = human.get(e["link_id"], 0) + 1
         for link in links.values():
             link.click_count = human.get(link.id, 0)
+            
         # Early-bird: trim so it sits at 92/100, inside the "near cap" alert zone.
         eb = links["early-bird"]
         eb_events = [e for e in events if e["link_id"] == eb.id]
@@ -177,6 +209,7 @@ async def main(reset: bool) -> None:
         eb.click_count = 92
 
         await s.flush()
+        log.info("Inserting %s click events into PostgreSQL...", len(events))
         for i in range(0, len(events), 2000):
             await s.execute(insert(ClickEvent), events[i:i + 2000])
         await s.commit()
@@ -186,6 +219,7 @@ async def main(reset: bool) -> None:
         await cache.invalidate_link(code)
     await cache.blocklist_load(["free-giftcards.win", "login-verify-account.com"])
 
+    log.info("Database seeding completed successfully!")
     print(f"Seeded {len(links)} links and {len(events)} click events.")
     print("Sign in as  admin@linkpulse.dev / Admin@12345   (admin)")
     print("            demo@linkpulse.dev  / Demo@12345    (marketing user)")
@@ -193,6 +227,7 @@ async def main(reset: bool) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Seed LinkPulse PostgreSQL Database")
     parser.add_argument("--reset", action="store_true", help="drop all tables first")
-    asyncio.run(main(parser.parse_args().reset))
+    args = parser.parse_args()
+    asyncio.run(main(args.reset))
