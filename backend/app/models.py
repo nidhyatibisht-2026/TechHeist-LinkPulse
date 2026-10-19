@@ -13,8 +13,20 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import (BigInteger, Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Table, Text,
-                        UniqueConstraint)
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Table,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -33,9 +45,12 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(120), default="")
     password_hash: Mapped[str] = mapped_column(String(255))
-    role: Mapped[str] = mapped_column(String(16), default="user")  # user | admin
+    role: Mapped[str] = mapped_column(String(16), default="user", index=True)  # user | admin
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    def __repr__(self) -> str:
+        return f"<User id={self.id} email={self.email!r} role={self.role!r}>"
 
 
 class Campaign(Base):
@@ -52,6 +67,9 @@ class Campaign(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     links: Mapped[list[Link]] = relationship(back_populates="campaign")
+
+    def __repr__(self) -> str:
+        return f"<Campaign id={self.id} name={self.name!r} owner_id={self.owner_id}>"
 
 
 link_tags = Table(
@@ -70,9 +88,18 @@ class Tag(Base):
     name: Mapped[str] = mapped_column(String(50))
     color: Mapped[str] = mapped_column(String(16), default="#0B7FB5")
 
+    def __repr__(self) -> str:
+        return f"<Tag id={self.id} name={self.name!r}>"
+
 
 class Link(Base):
     __tablename__ = "links"
+    __table_args__ = (
+        Index("ix_links_owner_status", "owner_id", "status"),
+        Index("ix_links_status_expires", "status", "expires_at"),
+        CheckConstraint("click_cap IS NULL OR click_cap > 0", name="ck_link_click_cap_positive"),
+        CheckConstraint("click_count >= 0", name="ck_link_click_count_non_negative"),
+    )
     id: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String(50), unique=True, index=True)  # always lowercase
     destination: Mapped[str] = mapped_column(Text)
@@ -103,9 +130,29 @@ class Link(Base):
     tags: Mapped[list[Tag]] = relationship(secondary=link_tags)
     targets: Mapped[list[TargetRule]] = relationship(cascade="all, delete-orphan", order_by="TargetRule.priority")
 
+    @property
+    def is_expired(self) -> bool:
+        """Return True if the link has passed its configured expiration timestamp."""
+        if self.expires_at is None:
+            return False
+        now = utcnow()
+        exp = self.expires_at if self.expires_at.tzinfo else self.expires_at.replace(tzinfo=timezone.utc)
+        return now >= exp
+
+    @property
+    def is_cap_reached(self) -> bool:
+        """Return True if the link has a click cap and has reached or exceeded it."""
+        return self.click_cap is not None and self.click_count >= self.click_cap
+
+    def __repr__(self) -> str:
+        return f"<Link id={self.id} code={self.code!r} status={self.status!r} clicks={self.click_count}>"
+
 
 class TargetRule(Base):
     __tablename__ = "target_rules"
+    __table_args__ = (
+        Index("ix_target_rules_link_priority", "link_id", "priority"),
+    )
     id: Mapped[int] = mapped_column(primary_key=True)
     link_id: Mapped[int] = mapped_column(ForeignKey("links.id", ondelete="CASCADE"), index=True)
     kind: Mapped[str] = mapped_column(String(16))   # device | os | country
@@ -126,6 +173,8 @@ class ClickEvent(Base):
     __table_args__ = (
         Index("ix_click_link_ts", "link_id", "ts"),
         Index("ix_click_ts", "ts"),
+        Index("ix_click_analytics_filter", "link_id", "outcome", "is_bot", "ts"),
+        Index("ix_click_geo_device", "link_id", "country", "device"),
     )
     id: Mapped[int] = mapped_column(BigId, primary_key=True, autoincrement=True)
     link_id: Mapped[int] = mapped_column(ForeignKey("links.id", ondelete="CASCADE"))
@@ -155,9 +204,12 @@ class BlockedDomain(Base):
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
+    __table_args__ = (
+        Index("ix_audit_target", "target_type", "target_id"),
+    )
     id: Mapped[int] = mapped_column(primary_key=True)
     actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
-    action: Mapped[str] = mapped_column(String(50))
+    action: Mapped[str] = mapped_column(String(50), index=True)
     target_type: Mapped[str] = mapped_column(String(30))
     target_id: Mapped[str] = mapped_column(String(64))
     detail: Mapped[str] = mapped_column(Text, default="")
