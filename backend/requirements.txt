@@ -1,0 +1,16 @@
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+aiosqlite==0.20.0
+pydantic==2.10.3
+python-multipart==0.0.19
+python-dotenv==1.0.1
+redis==5.2.1
+arq==0.26.1
+httpx==0.28.1
+PyJWT==2.10.1
+bcrypt==4.2.1
+slowapi==0.1.9
+segno==1.6.1
+geoip2==4.8.1
