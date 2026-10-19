@@ -5,11 +5,13 @@ Keys:
   link:{code}         JSON snapshot of a link (or "__missing__" for unknown codes)
   blocklist:domains   SET of blocked domains
   blocklist:loaded    marker so an empty set is not confused with "not loaded"
+  clicks:buffer:{id}  Atomic buffer for high-frequency click counts
 """
 from __future__ import annotations
 
 import json
 import logging
+from typing import Any
 
 from app.config import settings
 
@@ -25,8 +27,13 @@ def get_redis():
     if _redis is None:
         import redis.asyncio as aioredis
 
-        _redis = aioredis.from_url(settings.redis_url, decode_responses=True,
-                                   socket_timeout=0.5, socket_connect_timeout=0.5)
+        _redis = aioredis.from_url(
+            settings.redis_url,
+            decode_responses=True,
+            socket_timeout=1.5,
+            socket_connect_timeout=2.0,
+            retry_on_timeout=True,
+        )
     return _redis
 
 
@@ -38,7 +45,7 @@ async def get_link(code: str) -> dict | str | None:
     try:
         raw = await r.get(f"link:{code}")
     except Exception as exc:  # noqa: BLE001
-        log.warning("cache get failed: %s", exc)
+        log.warning("cache get failed for code %s: %s", code, exc)
         return None
     if raw is None:
         return None
@@ -56,7 +63,7 @@ async def set_link(code: str, snapshot: dict | None) -> None:
         else:
             await r.set(f"link:{code}", json.dumps(snapshot), ex=settings.link_cache_ttl)
     except Exception as exc:  # noqa: BLE001
-        log.warning("cache set failed: %s", exc)
+        log.warning("cache set failed for code %s: %s", code, exc)
 
 
 async def invalidate_link(code: str) -> None:
@@ -68,6 +75,20 @@ async def invalidate_link(code: str) -> None:
         await r.delete(f"link:{code}")
     except Exception as exc:  # noqa: BLE001
         log.error("cache invalidation failed for %s: %s", code, exc)
+
+
+async def buffer_click_in_redis(link_id: int) -> int | None:
+    """Buffer click counts atomically in Redis to reduce PostgreSQL write lock contention."""
+    r = get_redis()
+    if r is None:
+        return None
+    try:
+        key = f"clicks:buffer:{link_id}"
+        count = await r.incr(key)
+        return int(count)
+    except Exception as exc:
+        log.warning("Click buffer increment failed for link_id %s: %s", link_id, exc)
+        return None
 
 
 async def blocklist_load(domains: list[str]) -> None:
