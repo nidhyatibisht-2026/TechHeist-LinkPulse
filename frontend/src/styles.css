@@ -305,3 +305,30 @@ input[type="checkbox"] { width: auto; }
 .btn:active { transform: translateY(1px); }
 .nav-link, .segmented button, .tabs button { transition: background-color 140ms ease, color 140ms ease; }
 .auth-page, .auth-side, .auth-form { min-width: 0; }
+
+/* ---------- login page: product intro + one-click demo ---------- */
+.auth-features { list-style: none; margin: 24px 0 0; padding: 0; display: grid; gap: 12px; max-width: 46ch; }
+.auth-features li { display: grid; gap: 2px; padding-left: 14px; border-left: 2px solid #4fb3e3; }
+.auth-features strong { color: #fff; font-size: 0.95rem; }
+.auth-features span { font-size: 0.88rem; }
+.demo-cta { margin-top: 24px; padding: 12px 20px; font-size: 1rem; }
+.demo-box { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px dashed var(--line-strong); border-radius: 8px; background: var(--surface); }
+.demo-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.demo-buttons .btn { justify-content: center; }
+
+@media (max-width: 800px) {
+  /* Stacked layout: keep the intro short so the sign-in form is close by. */
+  .auth-page { grid-template-rows: auto auto; align-content: start; }
+  .auth-side { justify-content: flex-start; gap: 20px; }
+  .auth-form { place-items: start center; }
+  .auth-side > .small { display: none; }
+  .auth-features { margin-top: 18px; gap: 10px; }
+  .demo-cta { width: 100%; justify-content: center; }
+}
+
+@media (max-width: 560px) {
+  .big-pulse { display: none; }
+  .auth-side p { margin-top: 10px; }
+  .auth-features span { font-size: 0.84rem; }
+  .demo-buttons { grid-template-columns: 1fr; }
+}
