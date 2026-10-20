@@ -36,6 +36,33 @@ The script uploads each folder without `.env`, `.venv`, `node_modules`, `dist` o
 
 The free plan allows 10 successful server deploys a month. Static deploys (the dashboard) and failed builds are free.
 
+## Deploy from Windows (PowerShell) with a project key
+
+A project key (`ad_...`) belongs to one app. The `linkpulse` key deploys the dashboard; the `linkpulse-api` key deploys the API. Ask the account owner for the key privately. It never goes in a file in this repo.
+
+```powershell
+setx ANTIDEPLOY_KEY "ad_..."                      # once; then open a NEW PowerShell window
+cd TechHeist-LinkPulse
+git pull
+
+.\deploy\antideploy.ps1 -App web -DryRun          # checks the key and packs frontend\; uploads nothing
+.\deploy\antideploy.ps1 -App web                  # deploys and waits for the result
+.\deploy\antideploy.ps1 -App web -Action status   # or: history, logs, health, metrics
+.\deploy\antideploy.ps1 -App web -Action rollback # put back the previous live version
+```
+
+The script refuses to run if:
+- the key belongs to a different app than `-App`
+- the archive contains `.env`, `.env.antideploy` or `*.db`
+
+If Windows blocks the script ("running scripts is disabled"), run this once in that window:
+`Set-ExecutionPolicy -Scope Process Bypass`
+
+**Do not:**
+- change the app's `VITE_API_URL` variable or its address
+- deploy after the agreed freeze
+- deploy at the same time as someone else
+
 ## Seed the demo data
 
 Run this once, against the hosted database:
