@@ -229,3 +229,28 @@ The app refuses to start with the default `SECRET_KEY` unless `BASE_URL` is loca
 4. A/B split destinations with a significance test
 5. Click aggregation tables (hourly rollups) for large datasets
 6. Alembic migrations and httpOnly-cookie sessions
+
+## Log in Page:
+
+<img width="1918" height="1155" alt="Screenshot 2026-10-20 171057" src="https://github.com/user-attachments/assets/fae2349e-f840-4ef0-96c2-0f2027a123f4" />
+
+## Dashboard:
+
+<img width="1919" height="1158" alt="Screenshot 2026-10-20 170250" src="https://github.com/user-attachments/assets/4ab1ffca-b8de-418f-9ceb-5dedbcb01379" />
+
+<img width="1634" height="1039" alt="Screenshot 2026-10-20 171029" src="https://github.com/user-attachments/assets/31e157dd-57d6-4f32-8b6f-e07d8c2e8d7e" />
+
+<img width="1283" height="835" alt="Screenshot 2026-10-20 171038" src="https://github.com/user-attachments/assets/321f91b7-efdb-465d-9dfa-4392f5bcfe50" />
+
+## Links:
+
+<img width="1919" height="1076" alt="Screenshot 2026-10-20 165921" src="https://github.com/user-attachments/assets/6b66d38c-3a82-49bb-a424-8f9e3acafefe" />
+
+<img width="1919" height="1162" alt="Screenshot 2026-10-20 165727" src="https://github.com/user-attachments/assets/6a092a31-85bd-4cc2-bc2b-2f0cf4894e38" />
+
+## Campaigns:
+
+<img width="1919" height="1160" alt="Screenshot 2026-10-20 170552" src="https://github.com/user-attachments/assets/ff70839f-841a-4e38-8f56-8902ff9ed5e8" />
+
+<img width="1683" height="319" alt="Screenshot 2026-10-20 170616" src="https://github.com/user-attachments/assets/69c71c18-5bfb-4b22-bd06-536d774ce8b0" />
+
