@@ -77,7 +77,7 @@ p { margin: 0; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
 /* ---------- shell ---------- */
-.shell { display: grid; grid-template-columns: 232px 1fr; min-height: 100%; }
+.shell { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 100%; }
 .sidebar {
   background: var(--sidebar); color: var(--sidebar-text);
   padding: 22px 14px; display: flex; flex-direction: column; gap: 4px;
@@ -255,3 +255,53 @@ input[type="checkbox"] { width: auto; }
 
 .copy-line { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
 .copy-line .code { font-size: 1.05rem; flex: 1; min-width: 0; }
+
+/* Keep dashboard content usable in narrow browser windows. */
+.shell,
+.main,
+.main > *,
+.grid-2,
+.grid-3,
+.panel,
+.panel-head,
+.panel-body {
+  min-width: 0;
+}
+
+.panel-head { flex-wrap: wrap; }
+.kpis { grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
+.kpi { min-width: 0; overflow-wrap: anywhere; }
+
+@media (max-width: 900px) {
+  .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 560px) {
+  .main { padding: 16px 12px 40px; }
+  .page-head { align-items: flex-start; }
+  .page-head > .row { width: 100%; justify-content: flex-start; }
+  .panel-body { padding: 14px; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .kpi { padding: 14px 12px; }
+  .kpi .value { font-size: 1.55rem; }
+  .alert-row { grid-template-columns: 1fr; gap: 6px; }
+  .steps { flex-wrap: wrap; }
+  .sidebar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .brand { grid-column: 1 / -1; padding: 4px 8px 10px; }
+  .nav-link { min-width: 0; padding: 10px 8px; font-size: 0.9rem; }
+  .nav-link svg { width: 16px; height: 16px; }
+  .auth-side { padding: 24px 20px; gap: 18px; }
+  .auth-form { padding: 22px 16px 32px; }
+  .auth-side h1 { font-size: 1.7rem; }
+  .big-pulse { height: 76px; gap: 4px; }
+  .big-pulse span { width: 7px; }
+  .segmented button { padding-inline: 9px; }
+}
+
+/* Small interaction cues keep controls clear without changing their behavior. */
+.panel { border-radius: 10px; }
+.btn { transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease; }
+.btn:active { transform: translateY(1px); }
+.nav-link, .segmented button, .tabs button { transition: background-color 140ms ease, color 140ms ease; }
+.auth-page, .auth-side, .auth-form { min-width: 0; }
